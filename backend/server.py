@@ -283,11 +283,13 @@ async def list_mappings(user=Depends(get_current_user)):
     if user["role"] == "mentor":
         query["mentor_id"] = user["user_id"]
     mappings = await db.mentor_student_mappings.find(query, {"_id": 0}).to_list(500)
+    # Batch fetch all unique user_ids to avoid N+1 queries
+    all_user_ids = list(set([m["mentor_id"] for m in mappings] + [m["student_id"] for m in mappings]))
+    users_list = await db.users.find({"user_id": {"$in": all_user_ids}}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "batch": 1, "course": 1, "profile_photo_url": 1}).to_list(500)
+    users_map = {u["user_id"]: u for u in users_list}
     for m in mappings:
-        mentor = await db.users.find_one({"user_id": m["mentor_id"]}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "profile_photo_url": 1})
-        student = await db.users.find_one({"user_id": m["student_id"]}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "batch": 1, "course": 1, "profile_photo_url": 1})
-        m["mentor"] = mentor
-        m["student"] = student
+        m["mentor"] = users_map.get(m["mentor_id"])
+        m["student"] = users_map.get(m["student_id"])
     return mappings
 
 @api_router.post("/mappings")
@@ -324,11 +326,36 @@ async def get_mentees(mentor_id: str, user=Depends(get_current_user)):
     if user["role"] == "mentor" and user["user_id"] != mentor_id:
         raise HTTPException(status_code=403, detail="Can only view own mentees")
     mappings = await db.mentor_student_mappings.find({"mentor_id": mentor_id}, {"_id": 0}).to_list(100)
+    student_ids = [m["student_id"] for m in mappings]
+    if not student_ids:
+        return []
+    # Batch fetch students
+    students_list = await db.users.find({"user_id": {"$in": student_ids}}, {"_id": 0}).to_list(100)
+    students_map = {s["user_id"]: s for s in students_list}
+    # Batch fetch progress with projection for only needed fields
+    all_progress = await db.student_topic_progress.find(
+        {"student_id": {"$in": student_ids}},
+        {"_id": 0, "student_id": 1, "status": 1, "completion_pct": 1, "study_hours": 1}
+    ).to_list(5000)
+    # Group progress by student
+    progress_by_student: Dict[str, list] = {}
+    for p in all_progress:
+        sid = p["student_id"]
+        if sid not in progress_by_student:
+            progress_by_student[sid] = []
+        progress_by_student[sid].append(p)
+    # Batch fetch pending task counts using aggregation
+    task_pipeline = [
+        {"$match": {"assigned_to": {"$in": student_ids}, "status": {"$ne": "completed"}}},
+        {"$group": {"_id": "$assigned_to", "count": {"$sum": 1}}}
+    ]
+    task_counts_raw = await db.tasks.aggregate(task_pipeline).to_list(100)
+    task_counts = {t["_id"]: t["count"] for t in task_counts_raw}
     mentees = []
-    for m in mappings:
-        student = await db.users.find_one({"user_id": m["student_id"]}, {"_id": 0})
+    for sid in student_ids:
+        student = students_map.get(sid)
         if student:
-            progress = await db.student_topic_progress.find({"student_id": student["user_id"]}, {"_id": 0}).to_list(1000)
+            progress = progress_by_student.get(sid, [])
             total = len(progress)
             completed = len([p for p in progress if p.get("status") == "completed"])
             in_progress = len([p for p in progress if p.get("status") == "in_progress"])
@@ -342,8 +369,7 @@ async def get_mentees(mentor_id: str, user=Depends(get_current_user)):
                 "total_hours": round(total_hours, 1),
                 "status_color": "green" if avg_completion >= 60 else ("yellow" if avg_completion >= 30 else "red")
             }
-            pending_tasks = await db.tasks.count_documents({"assigned_to": student["user_id"], "status": {"$ne": "completed"}})
-            student["pending_tasks"] = pending_tasks
+            student["pending_tasks"] = task_counts.get(sid, 0)
             mentees.append(student)
     return mentees
 
@@ -500,13 +526,21 @@ async def list_tasks(user=Depends(get_current_user)):
             {"assigned_to": user["user_id"]},
             {"assigned_to": None}
         ]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # Batch fetch all unique user_ids for assignees and assigners
+    all_user_ids = list(set(
+        [t["assigned_to"] for t in tasks if t.get("assigned_to")] +
+        [t["assigned_by"] for t in tasks if t.get("assigned_by")]
+    ))
+    if all_user_ids:
+        users_list = await db.users.find({"user_id": {"$in": all_user_ids}}, {"_id": 0, "name": 1, "user_id": 1}).to_list(500)
+        users_map = {u["user_id"]: u for u in users_list}
+    else:
+        users_map = {}
     for task in tasks:
         if task.get("assigned_to"):
-            assignee = await db.users.find_one({"user_id": task["assigned_to"]}, {"_id": 0, "name": 1, "user_id": 1})
-            task["assignee"] = assignee
+            task["assignee"] = users_map.get(task["assigned_to"])
         if task.get("assigned_by"):
-            assigner = await db.users.find_one({"user_id": task["assigned_by"]}, {"_id": 0, "name": 1, "user_id": 1})
-            task["assigner"] = assigner
+            task["assigner"] = users_map.get(task["assigned_by"])
     return tasks
 
 @api_router.post("/tasks")
@@ -543,11 +577,19 @@ async def list_sessions(user=Depends(get_current_user)):
         sessions = await db.mentor_sessions.find({"mentor_id": user["user_id"]}, {"_id": 0}).sort("scheduled_at", -1).to_list(500)
     else:
         sessions = await db.mentor_sessions.find({"student_id": user["user_id"]}, {"_id": 0}).sort("scheduled_at", -1).to_list(500)
+    # Batch fetch all unique mentor and student ids
+    all_user_ids = list(set(
+        [s["mentor_id"] for s in sessions if s.get("mentor_id")] +
+        [s["student_id"] for s in sessions if s.get("student_id")]
+    ))
+    if all_user_ids:
+        users_list = await db.users.find({"user_id": {"$in": all_user_ids}}, {"_id": 0, "name": 1, "user_id": 1, "profile_photo_url": 1}).to_list(500)
+        users_map = {u["user_id"]: u for u in users_list}
+    else:
+        users_map = {}
     for s in sessions:
-        mentor = await db.users.find_one({"user_id": s["mentor_id"]}, {"_id": 0, "name": 1, "user_id": 1, "profile_photo_url": 1})
-        student = await db.users.find_one({"user_id": s["student_id"]}, {"_id": 0, "name": 1, "user_id": 1, "profile_photo_url": 1})
-        s["mentor"] = mentor
-        s["student"] = student
+        s["mentor"] = users_map.get(s.get("mentor_id"))
+        s["student"] = users_map.get(s.get("student_id"))
     return sessions
 
 @api_router.post("/sessions")
