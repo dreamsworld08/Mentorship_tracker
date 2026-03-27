@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Image, Alert,
+  ActivityIndicator, Image, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ export default function StudentProfile() {
   const router = useRouter();
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -25,18 +26,21 @@ export default function StudentProfile() {
     }
   }, [user]);
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-          router.replace('/');
-        },
-      },
-    ]);
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/');
+  };
+
+  const confirmLogout = () => {
+    if (Platform.OS === 'web') {
+      setShowLogoutConfirm(true);
+    } else {
+      const Alert = require('react-native').Alert;
+      Alert.alert('Logout', 'Are you sure you want to logout?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: handleLogout },
+      ]);
+    }
   };
 
   if (loading) {
@@ -124,7 +128,7 @@ export default function StudentProfile() {
 
         {/* Logout */}
         <View style={styles.section}>
-          <TouchableOpacity testID="logout-button" style={styles.logoutBtn} onPress={handleLogout}>
+          <TouchableOpacity testID="logout-button" style={styles.logoutBtn} onPress={confirmLogout}>
             <Ionicons name="log-out-outline" size={20} color={theme.colors.danger} />
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
@@ -132,6 +136,24 @@ export default function StudentProfile() {
 
         <View style={{ height: 30 }} />
       </ScrollView>
+
+      {/* Logout Confirmation Modal (Web) */}
+      {showLogoutConfirm && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Logout</Text>
+            <Text style={styles.modalBody}>Are you sure you want to logout?</Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity testID="cancel-logout" style={styles.modalCancelBtn} onPress={() => setShowLogoutConfirm(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity testID="confirm-logout" style={styles.modalLogoutBtn} onPress={handleLogout}>
+                <Text style={styles.modalLogoutText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -163,4 +185,13 @@ const styles = StyleSheet.create({
   perfLabel: { fontSize: 11, color: theme.colors.textTertiary, marginTop: 4, fontWeight: '600' },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14, backgroundColor: theme.colors.dangerBg, gap: 8 },
   logoutText: { fontSize: 15, fontWeight: '600', color: theme.colors.danger },
+  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  modalCard: { backgroundColor: theme.colors.paper, borderRadius: 20, padding: 24, width: '80%', maxWidth: 340, alignItems: 'center' },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.textPrimary, marginBottom: 8 },
+  modalBody: { fontSize: 14, color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 20 },
+  modalActions: { flexDirection: 'row', gap: 12, width: '100%' },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.colors.subtle, alignItems: 'center' },
+  modalCancelText: { fontSize: 14, fontWeight: '600', color: theme.colors.textSecondary },
+  modalLogoutBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.colors.danger, alignItems: 'center' },
+  modalLogoutText: { fontSize: 14, fontWeight: '600', color: '#fff' },
 });
