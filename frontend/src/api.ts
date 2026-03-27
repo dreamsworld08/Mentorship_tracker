@@ -74,6 +74,21 @@ export const api = {
   // Analytics
   getAnalyticsOverview: () => request('/api/analytics/overview'),
   getStudentAnalytics: (studentId: string) => request(`/api/analytics/student/${studentId}`),
+
+  // Syllabus CRUD
+  createTopic: (data: any) => request('/api/syllabus/topics', { method: 'POST', body: JSON.stringify(data) }),
+  deleteTopic: (topicId: string) => request(`/api/syllabus/topics/${topicId}`, { method: 'DELETE' }),
+  createModule: (data: any) => request('/api/syllabus/modules', { method: 'POST', body: JSON.stringify(data) }),
+  deleteModule: (moduleId: string) => request(`/api/syllabus/modules/${moduleId}`, { method: 'DELETE' }),
+
+  // Documents
+  getDocuments: () => request('/api/documents'),
+  uploadDocument: (data: any) => request('/api/documents', { method: 'POST', body: JSON.stringify(data) }),
+  deleteDocument: (docId: string) => request(`/api/documents/${docId}`, { method: 'DELETE' }),
+  togglePinDocument: (docId: string) => request(`/api/documents/${docId}/pin`, { method: 'PUT' }),
+
+  // Bulk Import
+  bulkImportUsers: (csvData: string) => request('/api/users/bulk-import', { method: 'POST', body: JSON.stringify({ csv_data: csvData }) }),
 };
 
 export { getToken, AsyncStorage };

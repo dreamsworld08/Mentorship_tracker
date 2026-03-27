@@ -394,6 +394,183 @@ async def get_flat_topics(user=Depends(get_current_user)):
     topics = await db.syllabus_topics.find({}, {"_id": 0}).to_list(2000)
     return topics
 
+# ---- Syllabus CRUD (Admin + Mentor) ----
+
+class TopicCreate(BaseModel):
+    module_id: str
+    name: str
+
+class ModuleCreate(BaseModel):
+    paper_id: str
+    name: str
+
+@api_router.post("/syllabus/topics")
+async def create_topic(data: TopicCreate, user=Depends(get_current_user)):
+    if user["role"] not in ["admin", "mentor"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    module = await db.syllabus_modules.find_one({"module_id": data.module_id}, {"_id": 0})
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    count = await db.syllabus_topics.count_documents({"module_id": data.module_id})
+    topic_id = f"topic_{uuid.uuid4().hex[:12]}"
+    await db.syllabus_topics.insert_one({
+        "topic_id": topic_id, "module_id": data.module_id,
+        "name": data.name, "order_index": count
+    })
+    return await db.syllabus_topics.find_one({"topic_id": topic_id}, {"_id": 0})
+
+@api_router.delete("/syllabus/topics/{topic_id}")
+async def delete_topic(topic_id: str, user=Depends(get_current_user)):
+    if user["role"] not in ["admin", "mentor"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    await db.syllabus_topics.delete_one({"topic_id": topic_id})
+    await db.student_topic_progress.delete_many({"topic_id": topic_id})
+    return {"message": "Topic deleted"}
+
+@api_router.post("/syllabus/modules")
+async def create_module(data: ModuleCreate, user=Depends(get_current_user)):
+    if user["role"] not in ["admin", "mentor"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    paper = await db.syllabus_papers.find_one({"paper_id": data.paper_id}, {"_id": 0})
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    count = await db.syllabus_modules.count_documents({"paper_id": data.paper_id})
+    module_id = f"mod_{uuid.uuid4().hex[:12]}"
+    await db.syllabus_modules.insert_one({
+        "module_id": module_id, "paper_id": data.paper_id,
+        "name": data.name, "order_index": count
+    })
+    return await db.syllabus_modules.find_one({"module_id": module_id}, {"_id": 0})
+
+@api_router.delete("/syllabus/modules/{module_id}")
+async def delete_module(module_id: str, user=Depends(get_current_user)):
+    if user["role"] not in ["admin", "mentor"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    topics = await db.syllabus_topics.find({"module_id": module_id}, {"_id": 0, "topic_id": 1}).to_list(200)
+    topic_ids = [t["topic_id"] for t in topics]
+    await db.syllabus_topics.delete_many({"module_id": module_id})
+    if topic_ids:
+        await db.student_topic_progress.delete_many({"topic_id": {"$in": topic_ids}})
+    await db.syllabus_modules.delete_one({"module_id": module_id})
+    return {"message": "Module and its topics deleted"}
+
+# ---- Document Upload & Sharing ----
+
+@api_router.get("/documents")
+async def list_documents(user=Depends(get_current_user)):
+    if user["role"] == "admin":
+        docs = await db.documents.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    elif user["role"] == "mentor":
+        docs = await db.documents.find({"$or": [
+            {"uploaded_by": user["user_id"]},
+            {"visibility": "all"},
+        ]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    else:
+        mapping = await db.mentor_student_mappings.find_one({"student_id": user["user_id"]}, {"_id": 0})
+        mentor_id = mapping["mentor_id"] if mapping else None
+        docs = await db.documents.find({"$or": [
+            {"visibility": "all"},
+            {"uploaded_by": user["user_id"]},
+            {"uploaded_by": mentor_id} if mentor_id else {"uploaded_by": "none"},
+        ]}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # batch fetch uploaders
+    uploader_ids = list(set([d.get("uploaded_by") for d in docs if d.get("uploaded_by")]))
+    if uploader_ids:
+        uploaders = await db.users.find({"user_id": {"$in": uploader_ids}}, {"_id": 0, "user_id": 1, "name": 1, "role": 1}).to_list(100)
+        uploaders_map = {u["user_id"]: u for u in uploaders}
+    else:
+        uploaders_map = {}
+    for d in docs:
+        d["uploader"] = uploaders_map.get(d.get("uploaded_by"))
+    return docs
+
+@api_router.post("/documents")
+async def upload_document(request: Request, user=Depends(get_current_user)):
+    from fastapi import Form as FastForm
+    body = await request.json()
+    file_name = body.get("file_name", "Untitled")
+    category = body.get("category", "General")
+    description = body.get("description", "")
+    visibility = body.get("visibility", "all")
+    file_content = body.get("file_content", "")  # base64 for now
+    doc_id = f"doc_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "doc_id": doc_id,
+        "file_name": file_name,
+        "category": category,
+        "description": description,
+        "file_content": file_content,
+        "visibility": visibility,
+        "uploaded_by": user["user_id"],
+        "is_pinned": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.documents.insert_one(doc)
+    return await db.documents.find_one({"doc_id": doc_id}, {"_id": 0, "file_content": 0})
+
+@api_router.delete("/documents/{doc_id}")
+async def delete_document(doc_id: str, user=Depends(get_current_user)):
+    doc = await db.documents.find_one({"doc_id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if user["role"] != "admin" and doc.get("uploaded_by") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    await db.documents.delete_one({"doc_id": doc_id})
+    return {"message": "Document deleted"}
+
+@api_router.put("/documents/{doc_id}/pin")
+async def toggle_pin_document(doc_id: str, user=Depends(get_current_user)):
+    if user["role"] not in ["admin", "mentor"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    doc = await db.documents.find_one({"doc_id": doc_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    new_pinned = not doc.get("is_pinned", False)
+    await db.documents.update_one({"doc_id": doc_id}, {"$set": {"is_pinned": new_pinned}})
+    return {"is_pinned": new_pinned}
+
+# ---- Bulk CSV Import ----
+
+@api_router.post("/users/bulk-import")
+async def bulk_import_users(request: Request, user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    body = await request.json()
+    csv_data = body.get("csv_data", "")
+    if not csv_data:
+        raise HTTPException(status_code=400, detail="No CSV data provided")
+    import csv
+    import io
+    reader = csv.DictReader(io.StringIO(csv_data))
+    imported = 0
+    errors = []
+    for i, row in enumerate(reader):
+        name = row.get("name", "").strip()
+        email = row.get("email", "").strip().lower()
+        if not name or not email:
+            errors.append(f"Row {i+1}: missing name or email")
+            continue
+        existing = await db.users.find_one({"email": email}, {"_id": 0, "user_id": 1})
+        if existing:
+            errors.append(f"Row {i+1}: {email} already exists")
+            continue
+        uid = f"user_{uuid.uuid4().hex[:12]}"
+        await db.users.insert_one({
+            "user_id": uid, "email": email, "name": name,
+            "role": row.get("role", "student").strip().lower(),
+            "phone": row.get("phone", "").strip(),
+            "batch": row.get("batch", "").strip(),
+            "course": row.get("course", "").strip(),
+            "exam_year": row.get("exam_year", "").strip(),
+            "optional_subject": row.get("optional_subject", "").strip(),
+            "profile_photo_url": f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}&background=1A365D&color=fff&size=128",
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        })
+        imported += 1
+    return {"imported": imported, "errors": errors, "total_rows": imported + len(errors)}
+
 # ======================== TRACKER ROUTES ========================
 
 @api_router.get("/tracker/{student_id}")
