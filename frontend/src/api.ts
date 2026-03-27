@@ -93,6 +93,20 @@ export const api = {
 
   // Bulk Import
   bulkImportUsers: (csvData: string) => request('/api/users/bulk-import', { method: 'POST', body: JSON.stringify({ csv_data: csvData }) }),
+
+  // Call Requests
+  createCallRequest: (message?: string) => request('/api/call-requests', { method: 'POST', body: JSON.stringify({ message }) }),
+  getCallRequests: () => request('/api/call-requests'),
+  updateCallRequest: (reqId: string, status: string) => request(`/api/call-requests/${reqId}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+
+  // Feedback
+  createFeedback: (data: any) => request('/api/feedback', { method: 'POST', body: JSON.stringify(data) }),
+  getFeedback: (studentId: string) => request(`/api/feedback/${studentId}`),
+
+  // Meta
+  getBatches: () => request('/api/meta/batches'),
+  getOptionalSubjects: () => request('/api/meta/optional-subjects'),
+  getCsvTemplate: () => request('/api/meta/csv-template'),
 };
 
 export { getToken, AsyncStorage };

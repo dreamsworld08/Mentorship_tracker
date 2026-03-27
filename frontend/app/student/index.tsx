@@ -17,6 +17,8 @@ export default function StudentHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [callRequested, setCallRequested] = useState(false);
+
   const loadData = async () => {
     if (!user) return;
     try {
@@ -111,6 +113,12 @@ export default function StudentHome() {
                 <Ionicons name="chatbubble-ellipses" size={20} color={theme.colors.primary} />
               </TouchableOpacity>
             </View>
+            <TouchableOpacity testID="request-call-btn" style={styles.requestCallBtn} onPress={async () => {
+              try { await api.createCallRequest('I would like to schedule a mentorship call'); setCallRequested(true); } catch (e) { console.error(e); }
+            }} disabled={callRequested}>
+              <Ionicons name={callRequested ? 'checkmark-circle' : 'call'} size={18} color={callRequested ? theme.colors.success : theme.colors.primary} />
+              <Text style={[styles.requestCallText, callRequested && { color: theme.colors.success }]}>{callRequested ? 'Call Requested' : 'Request Mentor Call'}</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -204,6 +212,8 @@ const styles = StyleSheet.create({
   mentorName: { fontSize: 16, fontWeight: '700', color: theme.colors.textPrimary },
   mentorEmail: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 2 },
   mentorChatBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: theme.colors.subtle, justifyContent: 'center', alignItems: 'center' },
+  requestCallBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.colors.primary + '10', borderWidth: 1, borderColor: theme.colors.primary + '30', gap: 8 },
+  requestCallText: { fontSize: 14, fontWeight: '600', color: theme.colors.primary },
   progressItem: { marginBottom: 14, backgroundColor: theme.colors.paper, borderRadius: 12, padding: 14, ...theme.shadow.sm, borderWidth: 1, borderColor: theme.colors.borderLight },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   progressName: { fontSize: 14, fontWeight: '600', color: theme.colors.textPrimary },

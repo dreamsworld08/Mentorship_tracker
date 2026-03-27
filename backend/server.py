@@ -59,12 +59,21 @@ class TaskCreate(BaseModel):
     assigned_to: Optional[str] = None
     due_date: Optional[str] = None
     broadcast: bool = False
+    target_batch: Optional[str] = None
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
     due_date: Optional[str] = None
+
+class CallRequestCreate(BaseModel):
+    message: Optional[str] = None
+
+class FeedbackCreate(BaseModel):
+    student_id: str
+    topic_id: Optional[str] = None
+    feedback: str
 
 class SessionCreate(BaseModel):
     student_id: str
@@ -621,6 +630,88 @@ async def bulk_import_users(request: Request, user=Depends(get_current_user)):
         imported += 1
     return {"imported": imported, "errors": errors, "total_rows": imported + len(errors)}
 
+# ---- Call Requests ----
+
+@api_router.post("/call-requests")
+async def create_call_request(data: CallRequestCreate, user=Depends(get_current_user)):
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Students only")
+    mapping = await db.mentor_student_mappings.find_one({"student_id": user["user_id"]}, {"_id": 0})
+    if not mapping:
+        raise HTTPException(status_code=404, detail="No mentor assigned")
+    req_id = f"callreq_{uuid.uuid4().hex[:12]}"
+    await db.call_requests.insert_one({
+        "request_id": req_id, "student_id": user["user_id"], "mentor_id": mapping["mentor_id"],
+        "message": data.message or "Requesting a mentorship call",
+        "status": "pending", "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    return await db.call_requests.find_one({"request_id": req_id}, {"_id": 0})
+
+@api_router.get("/call-requests")
+async def list_call_requests(user=Depends(get_current_user)):
+    if user["role"] == "student":
+        reqs = await db.call_requests.find({"student_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    elif user["role"] == "mentor":
+        reqs = await db.call_requests.find({"mentor_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    else:
+        reqs = await db.call_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    uids = list(set([r.get("student_id") for r in reqs] + [r.get("mentor_id") for r in reqs]))
+    if uids:
+        users_list = await db.users.find({"user_id": {"$in": uids}}, {"_id": 0, "user_id": 1, "name": 1}).to_list(100)
+        umap = {u["user_id"]: u for u in users_list}
+    else:
+        umap = {}
+    for r in reqs:
+        r["student"] = umap.get(r.get("student_id"))
+        r["mentor"] = umap.get(r.get("mentor_id"))
+    return reqs
+
+@api_router.put("/call-requests/{request_id}")
+async def update_call_request(request_id: str, request: Request, user=Depends(get_current_user)):
+    body = await request.json()
+    await db.call_requests.update_one({"request_id": request_id}, {"$set": {"status": body.get("status", "acknowledged")}})
+    return {"message": "Updated"}
+
+# ---- Feedback ----
+
+@api_router.post("/feedback")
+async def create_feedback(data: FeedbackCreate, user=Depends(get_current_user)):
+    if user["role"] not in ["mentor", "admin"]:
+        raise HTTPException(status_code=403, detail="Mentors/Admin only")
+    fb_id = f"fb_{uuid.uuid4().hex[:12]}"
+    await db.feedback.insert_one({
+        "feedback_id": fb_id, "student_id": data.student_id, "mentor_id": user["user_id"],
+        "topic_id": data.topic_id, "feedback": data.feedback,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    return await db.feedback.find_one({"feedback_id": fb_id}, {"_id": 0})
+
+@api_router.get("/feedback/{student_id}")
+async def get_feedback(student_id: str, user=Depends(get_current_user)):
+    fbs = await db.feedback.find({"student_id": student_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return fbs
+
+# ---- Metadata Endpoints ----
+
+@api_router.get("/meta/batches")
+async def get_batches(user=Depends(get_current_user)):
+    batches = await db.users.distinct("batch", {"role": "student"})
+    return [b for b in batches if b]
+
+@api_router.get("/meta/optional-subjects")
+async def get_optional_subjects(user=Depends(get_current_user)):
+    subjects = await db.users.distinct("optional_subject", {"role": "student"})
+    defaults = ["Sociology", "Public Administration", "History", "Geography", "Political Science", "Philosophy", "Psychology", "Economics", "Anthropology", "Law", "Mathematics", "Commerce", "Medical Science", "Literature"]
+    all_subj = list(set([s for s in subjects if s] + defaults))
+    all_subj.sort()
+    return all_subj
+
+@api_router.get("/meta/csv-template")
+async def get_csv_template(user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    return {"template": "name,email,role,phone,batch,course,exam_year,optional_subject\nJohn Doe,john@example.com,student,+91-9876543210,Batch 2026-A,UPSC CSE Complete,2026,Sociology\nJane Smith,jane@example.com,mentor,+91-9876543211,,,,"}
+
 # ======================== TRACKER ROUTES ========================
 
 @api_router.get("/tracker/{student_id}")
@@ -774,18 +865,41 @@ async def list_tasks(user=Depends(get_current_user)):
 async def create_task(data: TaskCreate, user=Depends(get_current_user)):
     if user["role"] == "student":
         raise HTTPException(status_code=403, detail="Students cannot create tasks")
-    task_doc = {
-        "task_id": f"task_{uuid.uuid4().hex[:12]}",
-        "title": data.title,
-        "description": data.description,
-        "assigned_to": data.assigned_to,
-        "assigned_by": user["user_id"],
-        "due_date": data.due_date,
-        "status": "pending",
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    await db.tasks.insert_one(task_doc)
-    return await db.tasks.find_one({"task_id": task_doc["task_id"]}, {"_id": 0})
+    created_tasks = []
+    if data.broadcast:
+        # Assign to all mentees (mentor) or all students (admin)
+        query: Dict[str, Any] = {"role": "student", "is_active": True}
+        if data.target_batch:
+            query["batch"] = data.target_batch
+        if user["role"] == "mentor":
+            mentee_maps = await db.mentor_student_mappings.find({"mentor_id": user["user_id"]}, {"_id": 0}).to_list(100)
+            student_ids = [m["student_id"] for m in mentee_maps]
+            if data.target_batch:
+                students = await db.users.find({"user_id": {"$in": student_ids}, "batch": data.target_batch}, {"_id": 0, "user_id": 1}).to_list(100)
+            else:
+                students = await db.users.find({"user_id": {"$in": student_ids}}, {"_id": 0, "user_id": 1}).to_list(100)
+        else:
+            students = await db.users.find(query, {"_id": 0, "user_id": 1}).to_list(1000)
+        for s in students:
+            tid = f"task_{uuid.uuid4().hex[:12]}"
+            await db.tasks.insert_one({
+                "task_id": tid, "title": data.title, "description": data.description,
+                "assigned_to": s["user_id"], "assigned_by": user["user_id"],
+                "due_date": data.due_date, "status": "pending",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+            created_tasks.append(tid)
+        return {"message": f"Task assigned to {len(created_tasks)} students", "count": len(created_tasks)}
+    else:
+        task_doc = {
+            "task_id": f"task_{uuid.uuid4().hex[:12]}",
+            "title": data.title, "description": data.description,
+            "assigned_to": data.assigned_to, "assigned_by": user["user_id"],
+            "due_date": data.due_date, "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.tasks.insert_one(task_doc)
+        return await db.tasks.find_one({"task_id": task_doc["task_id"]}, {"_id": 0})
 
 @api_router.put("/tasks/{task_id}")
 async def update_task(task_id: str, data: TaskUpdate, user=Depends(get_current_user)):

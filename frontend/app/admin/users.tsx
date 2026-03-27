@@ -21,11 +21,23 @@ export default function AdminUsers() {
   const [submitting, setSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [batches, setBatches] = useState<string[]>([]);
+  const [optionalSubjects, setOptionalSubjects] = useState<string[]>([]);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [csvText, setCsvText] = useState('');
+  const [importResult, setImportResult] = useState<any>(null);
+
+  const EXAM_YEARS = ['2025', '2026', '2027', '2028'];
+  const BATCH_OPTIONS = ['Batch 2025-A', 'Batch 2025-B', 'Batch 2026-A', 'Batch 2026-B', 'Batch 2027-A'];
 
   const loadData = async () => {
     try {
-      const data = await api.getUsers(filterRole || undefined);
-      setUsers(data);
+      const [data, batchData, subjData] = await Promise.all([
+        api.getUsers(filterRole || undefined),
+        api.getBatches().catch(() => []),
+        api.getOptionalSubjects().catch(() => []),
+      ]);
+      setUsers(data); setBatches([...new Set([...BATCH_OPTIONS, ...batchData])]); setOptionalSubjects(subjData);
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -98,10 +110,31 @@ export default function AdminUsers() {
               ))}
             </View>
             <TextInput style={styles.input} placeholder="Phone" placeholderTextColor={theme.colors.textTertiary} value={formData.phone} onChangeText={v => setFormData({...formData, phone: v})} />
-            <TextInput style={styles.input} placeholder="Batch (e.g. Batch 2025-A)" placeholderTextColor={theme.colors.textTertiary} value={formData.batch} onChangeText={v => setFormData({...formData, batch: v})} />
+            <Text style={styles.fieldLabel}>Batch</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
+              {batches.map(b => (
+                <TouchableOpacity key={b} style={[styles.chipBtn, formData.batch === b && styles.chipActive]} onPress={() => setFormData({...formData, batch: b})}>
+                  <Text style={[styles.chipText, formData.batch === b && styles.chipTextActive]}>{b}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
             <TextInput style={styles.input} placeholder="Course" placeholderTextColor={theme.colors.textTertiary} value={formData.course} onChangeText={v => setFormData({...formData, course: v})} />
-            <TextInput style={styles.input} placeholder="Exam Year" placeholderTextColor={theme.colors.textTertiary} value={formData.exam_year} onChangeText={v => setFormData({...formData, exam_year: v})} />
-            <TextInput style={styles.input} placeholder="Optional Subject" placeholderTextColor={theme.colors.textTertiary} value={formData.optional_subject} onChangeText={v => setFormData({...formData, optional_subject: v})} />
+            <Text style={styles.fieldLabel}>Exam Year</Text>
+            <View style={styles.chipRow}>
+              {EXAM_YEARS.map(y => (
+                <TouchableOpacity key={y} style={[styles.chipBtn, formData.exam_year === y && styles.chipActive]} onPress={() => setFormData({...formData, exam_year: y})}>
+                  <Text style={[styles.chipText, formData.exam_year === y && styles.chipTextActive]}>{y}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.fieldLabel}>Optional Subject</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
+              {optionalSubjects.map(s => (
+                <TouchableOpacity key={s} style={[styles.chipBtn, formData.optional_subject === s && styles.chipActive]} onPress={() => setFormData({...formData, optional_subject: s})}>
+                  <Text style={[styles.chipText, formData.optional_subject === s && styles.chipTextActive]}>{s}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
             <TouchableOpacity testID="submit-add-user" style={styles.submitBtn} onPress={handleAddUser} disabled={submitting}>
               {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitBtnText}>Add User</Text>}
             </TouchableOpacity>
@@ -181,6 +214,12 @@ const styles = StyleSheet.create({
   formTitle: { fontSize: 17, fontWeight: '700', color: theme.colors.textPrimary, marginBottom: 12 },
   errorText: { color: theme.colors.danger, fontSize: 13, marginBottom: 8, backgroundColor: theme.colors.dangerBg, padding: 10, borderRadius: 8 },
   input: { backgroundColor: theme.colors.subtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: theme.colors.textPrimary, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 8 },
+  fieldLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.textTertiary, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  chipRow: { flexDirection: 'row', gap: 6, marginBottom: 10, flexWrap: 'wrap' },
+  chipBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.colors.subtle, borderWidth: 1, borderColor: theme.colors.border },
+  chipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  chipText: { fontSize: 12, fontWeight: '600', color: theme.colors.textSecondary },
+  chipTextActive: { color: '#fff' },
   roleSelector: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   roleOption: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: theme.colors.border, alignItems: 'center' },
   roleOptionActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '10' },
