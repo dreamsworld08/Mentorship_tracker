@@ -645,6 +645,8 @@ async def create_call_request(data: CallRequestCreate, user=Depends(get_current_
         "message": data.message or "Requesting a mentorship call",
         "status": "pending", "created_at": datetime.now(timezone.utc).isoformat()
     })
+    # Notify mentor
+    await create_notification(mapping["mentor_id"], "Call Request", f"{user['name']} has requested a mentorship call", "call_request")
     return await db.call_requests.find_one({"request_id": req_id}, {"_id": 0})
 
 @api_router.get("/call-requests")
@@ -690,6 +692,26 @@ async def create_feedback(data: FeedbackCreate, user=Depends(get_current_user)):
 async def get_feedback(student_id: str, user=Depends(get_current_user)):
     fbs = await db.feedback.find({"student_id": student_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return fbs
+
+# ---- Notifications ----
+
+@api_router.get("/notifications")
+async def get_notifications(user=Depends(get_current_user)):
+    notifs = await db.notifications.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return notifs
+
+@api_router.put("/notifications/{notif_id}/read")
+async def mark_notification_read(notif_id: str, user=Depends(get_current_user)):
+    await db.notifications.update_one({"notif_id": notif_id, "user_id": user["user_id"]}, {"$set": {"is_read": True}})
+    return {"message": "Marked as read"}
+
+async def create_notification(user_id: str, title: str, body: str, ntype: str = "general"):
+    await db.notifications.insert_one({
+        "notif_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": user_id, "title": title, "body": body,
+        "type": ntype, "is_read": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
 
 # ---- Metadata Endpoints ----
 
@@ -889,6 +911,8 @@ async def create_task(data: TaskCreate, user=Depends(get_current_user)):
                 "created_at": datetime.now(timezone.utc).isoformat()
             })
             created_tasks.append(tid)
+            # Notify student
+            await create_notification(s["user_id"], "New Task Assigned", f"Task: {data.title}", "task")
         return {"message": f"Task assigned to {len(created_tasks)} students", "count": len(created_tasks)}
     else:
         task_doc = {
@@ -899,6 +923,9 @@ async def create_task(data: TaskCreate, user=Depends(get_current_user)):
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.tasks.insert_one(task_doc)
+        # Notify student
+        if data.assigned_to:
+            await create_notification(data.assigned_to, "New Task Assigned", f"Task: {data.title}", "task")
         return await db.tasks.find_one({"task_id": task_doc["task_id"]}, {"_id": 0})
 
 @api_router.put("/tasks/{task_id}")
@@ -949,6 +976,8 @@ async def create_session(data: SessionCreate, user=Depends(get_current_user)):
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.mentor_sessions.insert_one(session_doc)
+    # Notify student about scheduled session
+    await create_notification(data.student_id, "Session Scheduled", f"Your mentor has scheduled a call: {data.agenda or 'Mentorship session'}", "session")
     return await db.mentor_sessions.find_one({"session_id": session_doc["session_id"]}, {"_id": 0})
 
 @api_router.put("/sessions/{session_id}")

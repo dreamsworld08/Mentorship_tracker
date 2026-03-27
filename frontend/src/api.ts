@@ -107,6 +107,10 @@ export const api = {
   getBatches: () => request('/api/meta/batches'),
   getOptionalSubjects: () => request('/api/meta/optional-subjects'),
   getCsvTemplate: () => request('/api/meta/csv-template'),
+
+  // Notifications
+  getNotifications: () => request('/api/notifications'),
+  markNotificationRead: (notifId: string) => request(`/api/notifications/${notifId}/read`, { method: 'PUT' }),
 };
 
 export { getToken, AsyncStorage };

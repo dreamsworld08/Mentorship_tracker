@@ -18,11 +18,19 @@ export default function MentorSchedule() {
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const [newTopicName, setNewTopicName] = useState('');
   const [addingToModule, setAddingToModule] = useState<string | null>(null);
+  const [showAddSession, setShowAddSession] = useState(false);
+  const [sessionStudent, setSessionStudent] = useState('');
+  const [sessionDate, setSessionDate] = useState('');
+  const [sessionTime, setSessionTime] = useState('');
+  const [sessionDuration, setSessionDuration] = useState('30');
+  const [sessionAgenda, setSessionAgenda] = useState('');
+  const [mentees, setMentees] = useState<any[]>([]);
 
   const loadData = async () => {
     try {
       const [sessData, syllData] = await Promise.all([api.getSessions(), api.getSyllabus()]);
       setSessions(sessData); setSyllabus(syllData);
+      if (user) { api.getMentees(user.user_id).then(setMentees).catch(() => {}); }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
   };
@@ -52,6 +60,16 @@ export default function MentorSchedule() {
   const upcoming = sessions.filter(s => s.status === 'scheduled');
   const past = sessions.filter(s => s.status === 'completed');
 
+  const handleCreateSession = async () => {
+    if (!sessionStudent || !sessionDate || !sessionTime) return;
+    try {
+      const scheduledAt = `${sessionDate}T${sessionTime}:00`;
+      await api.createSession({ student_id: sessionStudent, scheduled_at: scheduledAt, duration_minutes: parseInt(sessionDuration) || 30, agenda: sessionAgenda });
+      setShowAddSession(false); setSessionStudent(''); setSessionDate(''); setSessionTime(''); setSessionAgenda('');
+      const sessData = await api.getSessions(); setSessions(sessData);
+    } catch (e) { console.error(e); }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -69,6 +87,42 @@ export default function MentorSchedule() {
         <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}>
           {activeTab === 'sessions' ? (
             <>
+              {/* Add Session Button */}
+              <View style={styles.section}>
+                <TouchableOpacity testID="add-session-btn" style={styles.addSessionBtn} onPress={() => setShowAddSession(!showAddSession)}>
+                  <Ionicons name={showAddSession ? 'close' : 'add-circle'} size={18} color={theme.colors.primary} />
+                  <Text style={styles.addSessionText}>{showAddSession ? 'Cancel' : 'Schedule New Session'}</Text>
+                </TouchableOpacity>
+              </View>
+              {showAddSession && (
+                <View style={styles.sessionForm}>
+                  <Text style={styles.formLabel}>Select Student</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
+                    {mentees.map(m => (
+                      <TouchableOpacity key={m.user_id} style={[styles.chip, sessionStudent === m.user_id && styles.chipActive]} onPress={() => setSessionStudent(m.user_id)}>
+                        <Text style={[styles.chipText, sessionStudent === m.user_id && styles.chipTextActive]}>{m.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  <Text style={styles.formLabel}>Date</Text>
+                  <TextInput testID="session-date-input" style={styles.formInput} placeholder="YYYY-MM-DD" placeholderTextColor={theme.colors.textTertiary} value={sessionDate} onChangeText={setSessionDate} />
+                  <Text style={styles.formLabel}>Time</Text>
+                  <TextInput testID="session-time-input" style={styles.formInput} placeholder="HH:MM (24hr)" placeholderTextColor={theme.colors.textTertiary} value={sessionTime} onChangeText={setSessionTime} />
+                  <Text style={styles.formLabel}>Duration</Text>
+                  <View style={styles.durationRow}>
+                    {['15', '30', '45', '60'].map(d => (
+                      <TouchableOpacity key={d} style={[styles.chip, sessionDuration === d && styles.chipActive]} onPress={() => setSessionDuration(d)}>
+                        <Text style={[styles.chipText, sessionDuration === d && styles.chipTextActive]}>{d} min</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.formLabel}>Agenda</Text>
+                  <TextInput style={styles.formInput} placeholder="What will you discuss?" placeholderTextColor={theme.colors.textTertiary} value={sessionAgenda} onChangeText={setSessionAgenda} />
+                  <TouchableOpacity testID="submit-session-btn" style={styles.scheduleSubmitBtn} onPress={handleCreateSession}>
+                    <Ionicons name="calendar" size={16} color="#fff" /><Text style={styles.scheduleSubmitText}>Schedule Session</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Upcoming ({upcoming.length})</Text>
                 {upcoming.length === 0 ? (
@@ -188,6 +242,19 @@ const styles = StyleSheet.create({
   sessionAgenda: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 4, fontStyle: 'italic' },
   sessionDuration: { backgroundColor: theme.colors.subtle, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   durationText: { fontSize: 12, fontWeight: '700', color: theme.colors.primary },
+  // Session form
+  addSessionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: theme.colors.primary + '10', borderWidth: 1, borderColor: theme.colors.primary + '30', gap: 8 },
+  addSessionText: { fontSize: 14, fontWeight: '600', color: theme.colors.primary },
+  sessionForm: { marginHorizontal: 16, marginBottom: 12, backgroundColor: theme.colors.paper, borderRadius: 16, padding: 16, ...theme.shadow.md, borderWidth: 1, borderColor: theme.colors.borderLight },
+  formLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.textTertiary, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  formInput: { backgroundColor: theme.colors.subtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: theme.colors.textPrimary, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 10 },
+  durationRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: theme.colors.subtle, borderWidth: 1, borderColor: theme.colors.border },
+  chipActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  chipText: { fontSize: 13, fontWeight: '600', color: theme.colors.textSecondary },
+  chipTextActive: { color: '#fff' },
+  scheduleSubmitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary, borderRadius: 12, paddingVertical: 14, gap: 8 },
+  scheduleSubmitText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   // Syllabus
   stageCard: { backgroundColor: theme.colors.paper, borderRadius: 14, marginBottom: 10, ...theme.shadow.sm, borderWidth: 1, borderColor: theme.colors.borderLight, overflow: 'hidden' },
   stageHeader: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 10 },
