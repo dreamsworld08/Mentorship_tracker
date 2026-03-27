@@ -396,6 +396,13 @@ async def get_flat_topics(user=Depends(get_current_user)):
 
 # ---- Syllabus CRUD (Admin + Mentor) ----
 
+class StageCreate(BaseModel):
+    name: str
+
+class PaperCreate(BaseModel):
+    stage_id: str
+    name: str
+
 class TopicCreate(BaseModel):
     module_id: str
     name: str
@@ -403,6 +410,49 @@ class TopicCreate(BaseModel):
 class ModuleCreate(BaseModel):
     paper_id: str
     name: str
+
+@api_router.post("/syllabus/stages")
+async def create_stage(data: StageCreate, user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    count = await db.syllabus_stages.count_documents({})
+    stage_id = f"stage_{uuid.uuid4().hex[:12]}"
+    await db.syllabus_stages.insert_one({"stage_id": stage_id, "name": data.name, "order_index": count, "is_active": True})
+    return await db.syllabus_stages.find_one({"stage_id": stage_id}, {"_id": 0})
+
+@api_router.delete("/syllabus/stages/{stage_id}")
+async def delete_stage(stage_id: str, user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    papers = await db.syllabus_papers.find({"stage_id": stage_id}, {"_id": 0, "paper_id": 1}).to_list(50)
+    for paper in papers:
+        modules = await db.syllabus_modules.find({"paper_id": paper["paper_id"]}, {"_id": 0, "module_id": 1}).to_list(100)
+        for mod in modules:
+            await db.syllabus_topics.delete_many({"module_id": mod["module_id"]})
+        await db.syllabus_modules.delete_many({"paper_id": paper["paper_id"]})
+    await db.syllabus_papers.delete_many({"stage_id": stage_id})
+    await db.syllabus_stages.delete_one({"stage_id": stage_id})
+    return {"message": "Stage and all contents deleted"}
+
+@api_router.post("/syllabus/papers")
+async def create_paper(data: PaperCreate, user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    count = await db.syllabus_papers.count_documents({"stage_id": data.stage_id})
+    paper_id = f"paper_{uuid.uuid4().hex[:12]}"
+    await db.syllabus_papers.insert_one({"paper_id": paper_id, "stage_id": data.stage_id, "name": data.name, "order_index": count, "is_active": True})
+    return await db.syllabus_papers.find_one({"paper_id": paper_id}, {"_id": 0})
+
+@api_router.delete("/syllabus/papers/{paper_id}")
+async def delete_paper(paper_id: str, user=Depends(get_current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    modules = await db.syllabus_modules.find({"paper_id": paper_id}, {"_id": 0, "module_id": 1}).to_list(100)
+    for mod in modules:
+        await db.syllabus_topics.delete_many({"module_id": mod["module_id"]})
+    await db.syllabus_modules.delete_many({"paper_id": paper_id})
+    await db.syllabus_papers.delete_one({"paper_id": paper_id})
+    return {"message": "Paper and all contents deleted"}
 
 @api_router.post("/syllabus/topics")
 async def create_topic(data: TopicCreate, user=Depends(get_current_user)):

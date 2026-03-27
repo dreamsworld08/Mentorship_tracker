@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/AuthContext';
 import { api } from '../../src/api';
 import { theme } from '../../src/theme';
+import SyllabusEditor from '../../src/SyllabusEditor';
 
 type ActivePanel = null | 'announcements' | 'syllabus' | 'users' | 'reports';
 
@@ -92,22 +93,7 @@ export default function AdminContent() {
               </TouchableOpacity>
               <Text style={styles.panelTitle}>Syllabus Configuration</Text>
             </View>
-            {syllabus.map(stage => (
-              <View key={stage.stage_id} style={styles.syllabusStage}>
-                <View style={styles.syllabusStageHeader}>
-                  <Ionicons name="layers" size={18} color={theme.colors.primary} />
-                  <Text style={styles.syllabusStageTitle}>{stage.name}</Text>
-                  <Text style={styles.syllabusCount}>{stage.papers?.length || 0} papers</Text>
-                </View>
-                {stage.papers?.map((paper: any) => (
-                  <View key={paper.paper_id} style={styles.syllabusPaper}>
-                    <Ionicons name="document-text" size={14} color={theme.colors.accent} />
-                    <Text style={styles.syllabusPaperName}>{paper.name}</Text>
-                    <Text style={styles.syllabusCount}>{paper.modules?.reduce((a: number, m: any) => a + (m.topics?.length || 0), 0)} topics</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
+            <SyllabusEditor syllabus={syllabus} onRefresh={async () => { const d = await api.getSyllabus(); setSyllabus(d); }} />
           </View>
         );
 

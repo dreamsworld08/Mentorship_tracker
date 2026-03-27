@@ -76,6 +76,10 @@ export const api = {
   getStudentAnalytics: (studentId: string) => request(`/api/analytics/student/${studentId}`),
 
   // Syllabus CRUD
+  createStage: (data: any) => request('/api/syllabus/stages', { method: 'POST', body: JSON.stringify(data) }),
+  deleteStage: (stageId: string) => request(`/api/syllabus/stages/${stageId}`, { method: 'DELETE' }),
+  createPaper: (data: any) => request('/api/syllabus/papers', { method: 'POST', body: JSON.stringify(data) }),
+  deletePaper: (paperId: string) => request(`/api/syllabus/papers/${paperId}`, { method: 'DELETE' }),
   createTopic: (data: any) => request('/api/syllabus/topics', { method: 'POST', body: JSON.stringify(data) }),
   deleteTopic: (topicId: string) => request(`/api/syllabus/topics/${topicId}`, { method: 'DELETE' }),
   createModule: (data: any) => request('/api/syllabus/modules', { method: 'POST', body: JSON.stringify(data) }),

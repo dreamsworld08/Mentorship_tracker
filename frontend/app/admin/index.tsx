@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/AuthContext';
 import { api } from '../../src/api';
 import { theme } from '../../src/theme';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const router = useRouter();
   const [analytics, setAnalytics] = useState<any>(null);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,23 +43,30 @@ export default function AdminDashboard() {
           <Text style={styles.subtitle}>Sleepy Classes IAS Platform</Text>
         </View>
 
-        {/* Key Metrics */}
+        {/* Key Metrics - Now Functional Buttons */}
         <View style={styles.metricsGrid}>
           {[
-            { icon: 'school', label: 'Students', value: analytics?.total_students || 0, color: theme.colors.primary },
-            { icon: 'people', label: 'Mentors', value: analytics?.total_mentors || 0, color: theme.colors.accent },
-            { icon: 'library', label: 'Topics', value: analytics?.total_topics || 0, color: theme.colors.success },
-            { icon: 'trending-up', label: 'Avg Progress', value: `${analytics?.avg_completion || 0}%`, color: theme.colors.primaryLight },
-            { icon: 'checkbox', label: 'Tasks', value: analytics?.total_tasks || 0, color: theme.colors.warning },
-            { icon: 'videocam', label: 'Sessions', value: analytics?.total_sessions || 0, color: theme.colors.danger },
+            { icon: 'school', label: 'Students', value: analytics?.total_students || 0, color: theme.colors.primary, tab: 'users', filter: 'student' },
+            { icon: 'people', label: 'Mentors', value: analytics?.total_mentors || 0, color: theme.colors.accent, tab: 'users', filter: 'mentor' },
+            { icon: 'library', label: 'Topics', value: analytics?.total_topics || 0, color: theme.colors.success, tab: 'content' },
+            { icon: 'trending-up', label: 'Avg Progress', value: `${analytics?.avg_completion || 0}%`, color: theme.colors.primaryLight, tab: 'content' },
+            { icon: 'checkbox', label: 'Tasks', value: analytics?.total_tasks || 0, color: theme.colors.warning, tab: 'content' },
+            { icon: 'videocam', label: 'Sessions', value: analytics?.total_sessions || 0, color: theme.colors.danger, tab: 'content' },
           ].map((m, i) => (
-            <View key={i} style={styles.metricCard} testID={`metric-${m.label.toLowerCase()}`}>
+            <TouchableOpacity key={i} style={styles.metricCard} testID={`metric-${m.label.toLowerCase()}`} activeOpacity={0.7}
+              onPress={() => {
+                if (m.tab === 'users') {
+                  router.push('/admin/users');
+                } else {
+                  router.push('/admin/content');
+                }
+              }}>
               <View style={[styles.metricIcon, { backgroundColor: m.color + '15' }]}>
                 <Ionicons name={m.icon as any} size={20} color={m.color} />
               </View>
               <Text style={[styles.metricValue, { color: m.color }]}>{m.value}</Text>
               <Text style={styles.metricLabel}>{m.label}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
