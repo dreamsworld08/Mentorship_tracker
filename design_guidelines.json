@@ -1,0 +1,156 @@
+{
+  "theme_and_archetype": {
+    "theme": "Light",
+    "archetype": "Archetype 4 (Swiss & High-Contrast) + Premium Authority adjustments",
+    "reasoning": "UPSC preparation demands high focus, authority, and trust. The Deep Blue (#1A365D) establishes academic prestige, while the Gold (#D69E2E) signifies achievement. Clean whites/grays prevent cognitive overload in data-heavy tracking dashboards."
+  },
+  "color_palette": {
+    "primary": {
+      "DEFAULT": "#1A365D",
+      "light": "#2A4B8D",
+      "dark": "#0F203B"
+    },
+    "accent": {
+      "DEFAULT": "#D69E2E",
+      "light": "#ECC94B",
+      "dark": "#B7791F"
+    },
+    "background": {
+      "DEFAULT": "#F8FAFC",
+      "paper": "#FFFFFF",
+      "subtle": "#F1F5F9"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#475569",
+      "tertiary": "#94A3B8",
+      "inverse": "#FFFFFF"
+    },
+    "feedback": {
+      "success": "#10B981",
+      "success_bg": "#D1FAE5",
+      "warning": "#F59E0B",
+      "warning_bg": "#FEF3C7",
+      "danger": "#EF4444",
+      "danger_bg": "#FEE2E2"
+    },
+    "borders": "#E2E8F0"
+  },
+  "typography": {
+    "primary_font": "General Sans",
+    "secondary_font": "Manrope",
+    "hierarchy": {
+      "h1": "text-3xl font-bold tracking-tight text-primary",
+      "h2": "text-2xl font-bold tracking-tight text-primary",
+      "h3": "text-xl font-semibold text-primary",
+      "h4": "text-lg font-medium text-slate-900",
+      "body": "text-base font-normal text-slate-600 leading-relaxed",
+      "small": "text-sm font-normal text-slate-500",
+      "overline": "text-xs font-bold uppercase tracking-widest text-slate-400"
+    }
+  },
+  "spacing_and_layout": {
+    "screen_padding": "p-4 md:p-6",
+    "card_padding": "p-5",
+    "section_gap": "gap-6",
+    "element_gap": "gap-3",
+    "border_radius": {
+      "card": "rounded-2xl",
+      "button": "rounded-xl",
+      "input": "rounded-lg",
+      "badge": "rounded-full"
+    },
+    "shadows": {
+      "sm": "shadow-sm",
+      "md": "shadow-[0_4px_12px_rgba(0,0,0,0.05)]",
+      "lg": "shadow-[0_8px_24px_rgba(26,54,93,0.08)]"
+    }
+  },
+  "components": {
+    "button": {
+      "primary": "bg-[#1A365D] text-white rounded-xl py-4 px-6 font-semibold flex flex-row justify-center items-center active:opacity-90",
+      "secondary": "bg-white border-2 border-[#1A365D] text-[#1A365D] rounded-xl py-4 px-6 font-semibold flex flex-row justify-center items-center active:bg-slate-50",
+      "accent": "bg-[#D69E2E] text-white rounded-xl py-4 px-6 font-bold shadow-md flex flex-row justify-center items-center"
+    },
+    "card": {
+      "default": "bg-white rounded-2xl p-5 shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-slate-100",
+      "metric": "bg-white rounded-2xl p-4 border border-slate-100 flex flex-col gap-1",
+      "highlight": "bg-[#1A365D] rounded-2xl p-5 shadow-lg"
+    },
+    "input": {
+      "default": "bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-base text-slate-900 focus:border-[#1A365D] focus:bg-white"
+    },
+    "bottom_tabs": {
+      "container": "bg-white border-t border-slate-100 pb-safe pt-2",
+      "active_icon": "text-[#1A365D]",
+      "inactive_icon": "text-slate-400"
+    },
+    "status_badges": {
+      "green": "bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-bold",
+      "yellow": "bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-xs font-bold",
+      "red": "bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full text-xs font-bold"
+    }
+  },
+  "screens": {
+    "auth": {
+      "layout": "Full-screen image background using the auth_background asset. Add a bottom-heavy white card overlay (rounded-t-3xl) for the Google Login button and branding.",
+      "features": "Prominent 'Login with Google' CTA. High contrast, clean typography."
+    },
+    "student_dashboard": {
+      "layout": "Vertical scroll layout. Top header with Greeting + Profile Avatar. Followed by a row of Metric Cards (Tasks Done, Hours). Next: 'My Mentor' card (Image + Contact CTA). Next: Study Tracker (Ring chart or Progress bar). Next: Upcoming Tasks list.",
+      "cards": "Use the 'highlight' card variant (Deep Blue bg) for the immediate 'Next Task' to draw attention."
+    },
+    "mentor_dashboard": {
+      "layout": "Top Tabs for switching between 'My Mentees', 'Schedule', 'Analytics'. List view of mentees using the traffic light badges (green/yellow/red) to convey progress instantly.",
+      "interactions": "Tapping a mentee row opens a detailed modal or screen for adding feedback/assigning tasks."
+    },
+    "admin_dashboard": {
+      "layout": "Side drawer navigation (on tablet) or top tabs (on mobile). Start with a grid of metric cards. Below, use data tables/lists for User Management and Content Management.",
+      "style": "High density, strict grid layout. Follow Archetype 4 Swiss style data representation. Every pixel utilized efficiently."
+    }
+  },
+  "media": {
+    "auth_background": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/42196d9f-df0d-404d-8846-c54af0c4dc76/images/84699e68a41916904c1b89f1e076230124d5106f547b9abd8eec19dbdd0a993f.png",
+      "description": "Abstract minimalist background for auth screens, deep navy with gold accents."
+    },
+    "achievement_icon": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/42196d9f-df0d-404d-8846-c54af0c4dc76/images/25e66204274a7faadafb5b84c8142476d760fd9dc9c255fe18f1c9211b5fb474.png",
+      "description": "3D golden trophy for empty states, task completions, or achievement modals."
+    },
+    "student_avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1719245309441-c577e0d1959d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTV8MHwxfHNlYXJjaHwzfHxpbmRpYW4lMjBzdHVkZW50JTIwc3R1ZHlpbmclMjBsaWJyYXJ5fGVufDB8fHx8MTc3NDYwNjQwNnww&ixlib=rb-4.1.0&q=85",
+        "description": "Student studying (Use for placeholder/demo student profile)"
+      },
+      {
+        "url": "https://images.pexels.com/photos/6283211/pexels-photo-6283211.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Students collaborating (Use for community or group session placeholders)"
+      }
+    ],
+    "mentor_avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1758685848602-09e52ef9c7d3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBtZW50b3IlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NzQ2MDY0MDZ8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Professional mentor portrait 1"
+      },
+      {
+        "url": "https://images.pexels.com/photos/7641824/pexels-photo-7641824.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Professional mentor portrait 2"
+      }
+    ]
+  },
+  "icons": {
+    "library": "lucide-react-native",
+    "instructions": "Use lucide-react-native for all app icons to ensure cross-platform consistency. Use 24px default size, 2px stroke width."
+  },
+  "instructions_to_main_agent": [
+    "This is a React Native Expo application. Adapt the provided Tailwind classes using NativeWind or standard React Native StyleSheet equivalents.",
+    "Implement a Bottom Tab Navigator for the Student App, using Lucide icons. For Mentors/Admins, use Top Tabs or a Drawer based on the platform.",
+    "Data visualization components (Progress bars, Pie charts) MUST be rendered using React Native SVG or a charting library like react-native-chart-kit / victory-native.",
+    "Always use 'SafeAreaView' or safe area insets to prevent UI overlap with notches and home indicators.",
+    "Ensure all touchable elements (Buttons, Tab items) have a minimum height of 44px for thumb-friendly interaction.",
+    "CRITICAL TESTING RULE: All interactive and key informational elements MUST include a 'testID' attribute (the React Native equivalent of data-testid) in kebab-case, e.g., testID='login-google-button'.",
+    "Auth Screen: Implement an ImageBackground using the 'auth_background' URL. Overlay a View positioned at the bottom containing the Google Auth button.",
+    "Mentor Dashboard: Strictly follow the traffic light coloring (green/yellow/red) for mentee progress to allow instant triage of students."
+  ]
+}
