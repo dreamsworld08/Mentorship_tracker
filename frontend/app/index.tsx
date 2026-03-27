@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  ImageBackground, Platform, Dimensions,
+  ImageBackground, Platform, Dimensions, Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/AuthContext';
 import { theme } from '../src/theme';
 import { Ionicons } from '@expo/vector-icons';
+
+const sleepyLogo = require('../assets/images/sleepy-logo.png');
 
 const { width, height } = Dimensions.get('window');
 
@@ -97,7 +99,7 @@ export default function LoginScreen() {
       <View style={styles.topSection}>
         <View style={styles.logoContainer}>
           <View style={styles.logoIcon}>
-            <Ionicons name="school" size={40} color={theme.colors.textInverse} />
+            <Image source={sleepyLogo} style={styles.logoImage} resizeMode="contain" />
           </View>
           <Text style={styles.brandName}>Sleepy Classes</Text>
           <Text style={styles.brandTag}>IAS Mentorship Tracker</Text>
@@ -202,13 +204,18 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   logoIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: theme.colors.accent,
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+    backgroundColor: theme.colors.paper,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: 90,
+    height: 90,
   },
   brandName: {
     fontSize: 24,
